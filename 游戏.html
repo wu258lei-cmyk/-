@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>深夜酒局大转盘</title>
+    <style>
+        body {
+            background-color: #1a1a2e; /* 深夜蓝背景 */
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #e94560;
+            text-shadow: 0 0 10px #e94560;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin-bottom: 30px;
+            /* 霓虹发光效果 */
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.5), 0 0 40px rgba(15, 52, 96, 0.5);
+        }
+
+        canvas {
+            border-radius: 50%;
+            transform: rotate(-90deg); /* 让0度从正上方开始 */
+        }
+
+        /* 指针 */
+        .arrow {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 25px solid #fff; /* 白色指针 */
+            filter: drop-shadow(0 0 5px #fff);
+            z-index: 10;
+        }
+
+        /* 按钮样式 */
+        #actionBtn {
+            background: linear-gradient(45deg, #e94560, #0f3460);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.6);
+            transition: transform 0.1s;
+            font-weight: bold;
+        }
+
+        #actionBtn:active {
+            transform: scale(0.95);
+        }
+
+        /* 结果弹窗 */
+        #result {
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffd700;
+            min-height: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🍺 深夜情绪转盘 🍺</h1>
+
+    <div class="wheel-container">
+        <div class="arrow"></div>
+        <canvas id="wheelCanvas" width="300" height="300"></canvas>
+    </div>
+
+    <div id="result">准备好开始了吗？</div>
+    <button id="actionBtn" onclick="toggleSpin()">开始转动</button>
+
+    <script>
+        // --- 在这里修改你的惩罚项目 ---
+        const items = [
+            "喝一杯", 
+            "真心话", 
+            "指定人喝", 
+            "大冒险", 
+            "喝半杯", 
+            "唱首歌", 
+            "免死金牌", 
+            "深水炸弹"
+        ];
+        
+        // 配色方案 (交替颜色)
+        const colors = ["#0f3460", "#16213e", "#0f3460", "#16213e", "#0f3460", "#16213e", "#0f3460", "#e94560"]; 
+        
+        const canvas = document.getElementById("wheelCanvas");
+        const ctx = canvas.getContext("2d");
+        const size = 300;
+        const centerX = size / 2;
+        const centerY = size / 2;
+        const radius = size / 2;
+        const step = (2 * Math.PI) / items.length; // 每一块的弧度
+
+        let currentAngle = 0; // 当前角度
+        let isSpinning = false;
+        let spinSpeed = 0;
+        let animationFrameId;
+
+        // 绘制转盘
+        function drawWheel() {
+            for (let i = 0; i < items.length; i++) {
+                const angle = i * step;
+                
+                // 绘制扇形
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, angle, angle + step);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill();
+                ctx.stroke();
+
+                // 绘制文字
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + step / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 14px Arial";
+                ctx.fillText(items[i], radius - 20, 5);
+                ctx.restore();
+            }
+        }
+
+        // 旋转动画逻辑
+        function animate() {
+            // 旋转画布内容（视觉上的旋转）
+            // 这里我们不旋转画布，而是只记录角度，但为了简单，我们重新绘制并加上旋转偏移有点复杂
+            // 更简单的方法是：每次绘制时保留转盘不动，通过CSS旋转 canvas 元素
+            
+            // 这里我们采用简单逻辑：只更新CSS transform
+            canvas.style.transform = `rotate(${currentAngle - 90}deg)`; 
+
+            if (isSpinning) {
+                // 如果正在转，保持速度
+                spinSpeed = 20; // 匀速转动
+                currentAngle += spinSpeed;
+            } else {
+                // 如果停止被触发，开始减速
+                if (spinSpeed > 0.1) {
+                    spinSpeed *= 0.96; // 摩擦系数，越小停得越快
+                    currentAngle += spinSpeed;
+                } else {
+                    spinSpeed = 0;
+                    cancelAnimationFrame(animationFrameId);
+                    showResult();
+                    return;
+                }
+            }
+            
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // 按钮点击逻辑
+        function toggleSpin() {
+            const btn = document.getElementById("actionBtn");
+            const resDiv = document.getElementById("result");
+
+            if (!isSpinning && spinSpeed === 0) {
+                // 状态：静止 -> 开始转动
+                isSpinning = true;
+                btn.innerText = "停止！";
+                btn.style.background = "linear-gradient(45deg, #e94560, #c0392b)";
+                resDiv.innerText = "转动中...";
+                animate();
+            } else if (isSpinning) {
+                // 状态：转动中 -> 触发减速停止
+                isSpinning = false; // 这会触发 animate 中的 else 分支（减速）
+                btn.innerText = "正在停止...";
+                btn.disabled = true; // 防止重复点击
+            }
+        }
+
+        // 计算结果
+        function showResult() {
+            const btn = document.getElementById("actionBtn");
+            btn.innerText = "开始转动";
+            btn.disabled = false;
+            btn.style.background = "linear-gradient(45deg, #e94560, #0f3460)";
+
+            // 计算指针指向了哪一块
+            // 这里的数学逻辑：
+            // 指针在正上方(270度或-90度位置)。由于canvas旋转了，我们需要反推。
+            // 简单算法：360 - (当前角度 % 360) 得到相对于0点的偏移
+            
+            let normalizedAngle = currentAngle % 360;
+            // 因为CSS初始旋转了-90度，所以实际指针位置对应的是
+            let degreesPerSlice = 360 / items.length;
+            
+            // 修正角度计算，算出指针落在哪一块
+            // 指针固定在顶部，相当于转盘转了 normalizedAngle 度
+            // 也就是第 0 块划过了 normalizedAngle 度
+            // 我们需要计算哪个索引处于 360 - normalizedAngle 的位置
+            
+            let index = Math.floor((360 - normalizedAngle + 90) % 360 / degreesPerSlice); 
+            // +90 是为了修正初始CSS旋转
+
+            // 防止计算出 undefined 或 越界
+            index = (index + items.length) % items.length; // 确保是正整数
+
+            const resultText = items[index];
+            document.getElementById("result").innerText = "🎉 结果： " + resultText + " 🎉";
+        }
+
+        // 初始化
+        drawWheel();
+
+    </script>
+</body>
+</html>
